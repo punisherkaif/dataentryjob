@@ -38,6 +38,8 @@ Before launching on Vercel, apply all migrations in order using your [Supabase D
    - Permits workers to update their assigned tasks.
 6. **`supabase/migrations/20260816000005_task_zip_support.sql`**
    - Adds `zip_file_url` and `zip_file_name` to `tasks` table and updates `task-images` storage bucket to support ZIP packages up to 100MB.
+7. **`supabase/migrations/20260816000006_expanded_archive_support.sql`**
+   - Adds RAR, 7Z, TAR, and GZ mime-type support to Supabase Storage.
 
 ---
 
@@ -47,7 +49,7 @@ Before launching on Vercel, apply all migrations in order using your [Supabase D
    ```bash
    git add .
    git commit -m "Complete Work Management Platform - Phase 1 to 5"
-   git push origin main
+   git push -u origin master
    ```
 2. Log in to [Vercel](https://vercel.com) and click **Add New &rarr; Project**.
 3. Import your GitHub repository.
