@@ -1,14 +1,24 @@
-import Shell from '@/components/layout/Shell'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import AdminTasksClient from '@/components/tasks/AdminTasksClient'
 
-export default function AdminTasksPlaceholder() {
+export default async function AdminTasksPage() {
+  const supabase = await createClient()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  if (!authUser) redirect('/login')
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('name, role')
+    .eq('id', authUser.id)
+    .single() as { data: { name: string; role: string } | null }
+
+  if (profile?.role !== 'ADMIN') redirect('/user/dashboard')
+
   return (
-    <Shell role="ADMIN">
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-8 text-center">
-        <h1 className="text-xl font-bold text-slate-100">Task Management</h1>
-        <p className="mt-2 text-sm text-slate-400">
-          Admin task creation and source image upload interface will be populated in Phase 3.
-        </p>
-      </div>
-    </Shell>
+    <AdminTasksClient
+      adminName={profile?.name || 'Admin'}
+      adminEmail={authUser.email || ''}
+    />
   )
 }

@@ -21,6 +21,7 @@ import {
   Clock,
   Sparkles,
 } from 'lucide-react'
+import { APP_CONFIG } from '@/config/app.config'
 import { registerUserAction } from '@/app/actions/registration'
 
 const registrationFormSchema = z
@@ -76,7 +77,7 @@ export default function RegisterPage() {
     formData.append('password', data.password)
     formData.append('confirmPassword', data.confirmPassword)
     formData.append('transaction_id', data.transaction_id)
-    formData.append('payment_amount', '500')
+    formData.append('payment_amount', APP_CONFIG.payment.feeAmount.toString())
 
     const fileInput = document.getElementById('screenshot-file-input') as HTMLInputElement
     if (fileInput && fileInput.files && fileInput.files[0]) {
@@ -326,9 +327,11 @@ export default function RegisterPage() {
 
                 <div className="space-y-1">
                   <p className="text-xs text-slate-400">Scan QR Code to Pay Registration Fee</p>
-                  <p className="text-base font-extrabold text-emerald-400">₹500.00</p>
+                  <p className="text-base font-extrabold text-emerald-400">
+                    {APP_CONFIG.payment.currencySymbol}{APP_CONFIG.payment.feeAmount.toFixed(2)}
+                  </p>
                   <div className="inline-block rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-mono text-slate-300 border border-slate-800">
-                    UPI ID: <span className="text-indigo-400 font-semibold">dataentrywork@upi</span>
+                    UPI ID: <span className="text-indigo-400 font-semibold">{APP_CONFIG.payment.upiId}</span>
                   </div>
                 </div>
               </div>

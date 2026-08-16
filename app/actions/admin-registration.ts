@@ -190,15 +190,21 @@ export async function getAdminDashboardStatsAction() {
     }
   }
 
-  const [usersCountRes, pendingRegsCountRes, logsRes] = await Promise.all([
+  const [usersCountRes, pendingRegsCountRes, activeTasksRes, totalTasksRes, submissionsReviewRes, logsRes] = await Promise.all([
     supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'USER').eq('status', 'ACTIVE'),
     supabase.from('registrations').select('id', { count: 'exact', head: true }).eq('status', 'PENDING'),
+    supabase.from('tasks').select('id', { count: 'exact', head: true }).in('status', ['PENDING', 'IN_PROGRESS']),
+    supabase.from('tasks').select('id', { count: 'exact', head: true }),
+    supabase.from('submissions').select('id', { count: 'exact', head: true }).in('status', ['SUBMITTED', 'UNDER_REVIEW']),
     supabase.from('activity_logs').select('id, action, description, created_at').order('created_at', { ascending: false }).limit(6),
   ])
 
   return {
     activeWorkersCount: usersCountRes.count || 0,
     pendingRegistrationsCount: pendingRegsCountRes.count || 0,
+    activeTasksCount: activeTasksRes.count || 0,
+    totalTasksCount: totalTasksRes.count || 0,
+    submissionsToReviewCount: submissionsReviewRes.count || 0,
     recentActivityLogs: logsRes.data || [],
   }
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Shell from '@/components/layout/Shell'
+import StatusBadge from '@/components/ui/StatusBadge'
 import {
   getRegistrationsAction,
   approveRegistrationAction,

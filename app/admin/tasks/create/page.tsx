@@ -1,12 +1,11 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import AdminSubmissionsClient from '@/components/submissions/AdminSubmissionsClient'
+import { getActiveWorkersAction } from '@/app/actions/tasks'
+import CreateTaskForm from '@/components/tasks/CreateTaskForm'
 
-export default async function AdminSubmissionsPage() {
+export default async function CreateTaskPage() {
   const supabase = await createClient()
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
   if (!authUser) redirect('/login')
 
   const { data: profile } = await supabase
@@ -17,8 +16,11 @@ export default async function AdminSubmissionsPage() {
 
   if (profile?.role !== 'ADMIN') redirect('/user/dashboard')
 
+  const { workers } = await getActiveWorkersAction()
+
   return (
-    <AdminSubmissionsClient
+    <CreateTaskForm
+      workers={workers as any}
       adminName={profile?.name || 'Admin'}
       adminEmail={authUser.email || ''}
     />

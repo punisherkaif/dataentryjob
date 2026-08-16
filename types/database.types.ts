@@ -94,6 +94,8 @@ export interface Database {
           assigned_to: string | null
           deadline: string | null
           status: TaskStatus
+          zip_file_url: string | null
+          zip_file_name: string | null
           created_by: string | null
           created_at: string
           updated_at: string
@@ -106,6 +108,8 @@ export interface Database {
           assigned_to?: string | null
           deadline?: string | null
           status?: TaskStatus
+          zip_file_url?: string | null
+          zip_file_name?: string | null
           created_by?: string | null
           created_at?: string
           updated_at?: string
@@ -118,6 +122,8 @@ export interface Database {
           assigned_to?: string | null
           deadline?: string | null
           status?: TaskStatus
+          zip_file_url?: string | null
+          zip_file_name?: string | null
           created_by?: string | null
           created_at?: string
           updated_at?: string

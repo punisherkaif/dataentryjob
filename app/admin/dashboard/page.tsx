@@ -77,31 +77,41 @@ export default async function AdminDashboardPage() {
             <p className="mt-1 text-xs text-slate-500">Approved platform users</p>
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-lg">
+          <Link
+            href="/admin/tasks"
+            className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-lg hover:border-cyan-500/50 transition-all group"
+          >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-200">
                 Active Tasks
               </span>
               <div className="rounded-lg bg-cyan-500/10 p-2 text-cyan-400">
                 <FolderPlus className="h-5 w-5" />
               </div>
             </div>
-            <p className="mt-3 text-3xl font-bold text-slate-100">0</p>
-            <p className="mt-1 text-xs text-slate-500">Phase 3 Task assignment</p>
-          </div>
+            <p className="mt-3 text-3xl font-bold text-slate-100">{stats.activeTasksCount}</p>
+            <p className="mt-1 text-xs text-cyan-400 font-medium">
+              {stats.totalTasksCount} total tasks created
+            </p>
+          </Link>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-lg">
+          <Link
+            href="/admin/submissions"
+            className="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-lg hover:border-emerald-500/50 transition-all group"
+          >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-200">
                 Submissions to Review
               </span>
               <div className="rounded-lg bg-emerald-500/10 p-2 text-emerald-400">
                 <FileCheck className="h-5 w-5" />
               </div>
             </div>
-            <p className="mt-3 text-3xl font-bold text-slate-100">0</p>
-            <p className="mt-1 text-xs text-slate-500">Phase 4 Drive link reviews</p>
-          </div>
+            <p className="mt-3 text-3xl font-bold text-slate-100">{stats.submissionsToReviewCount}</p>
+            <p className="mt-1 text-xs text-emerald-400 font-medium">
+              {stats.submissionsToReviewCount === 1 ? '1 document awaiting review' : `${stats.submissionsToReviewCount} documents awaiting review`}
+            </p>
+          </Link>
         </div>
 
         {/* Recent Activity Log Feed */}
