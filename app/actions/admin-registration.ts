@@ -6,6 +6,32 @@ import { createClient } from '@/lib/supabase/server'
 export async function getRegistrationsAction(statusFilter: string = 'ALL') {
   const supabase = await createClient()
 
+  // 1. Auto-heal: Check for any pending users in `public.users` missing a `registrations` record
+  const { data: orphanedPendingUsers } = await supabase
+    .from('users')
+    .select('id, name, username')
+    .eq('role', 'USER')
+    .eq('status', 'PENDING') as { data: { id: string; name: string; username: string }[] | null }
+
+  if (orphanedPendingUsers && orphanedPendingUsers.length > 0) {
+    for (const user of orphanedPendingUsers) {
+      const { data: existingReg } = await (supabase.from('registrations') as any)
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!existingReg) {
+        await (supabase.from('registrations') as any).insert({
+          user_id: user.id,
+          transaction_id: 'PENDING_VERIFICATION',
+          payment_amount: 500.00,
+          status: 'PENDING',
+        })
+      }
+    }
+  }
+
+  // 2. Query all registrations
   let query = (supabase.from('registrations') as any)
     .select(`
       id,
@@ -138,6 +164,31 @@ export async function rejectRegistrationAction(
 
 export async function getAdminDashboardStatsAction() {
   const supabase = await createClient()
+
+  // Auto-heal check for pending counts
+  const { data: orphanedPendingUsers } = await supabase
+    .from('users')
+    .select('id')
+    .eq('role', 'USER')
+    .eq('status', 'PENDING') as { data: { id: string }[] | null }
+
+  if (orphanedPendingUsers && orphanedPendingUsers.length > 0) {
+    for (const user of orphanedPendingUsers) {
+      const { data: existingReg } = await (supabase.from('registrations') as any)
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!existingReg) {
+        await (supabase.from('registrations') as any).insert({
+          user_id: user.id,
+          transaction_id: 'PENDING_VERIFICATION',
+          payment_amount: 500.00,
+          status: 'PENDING',
+        })
+      }
+    }
+  }
 
   const [usersCountRes, pendingRegsCountRes, logsRes] = await Promise.all([
     supabase.from('users').select('id', { count: 'exact', head: true }).eq('role', 'USER').eq('status', 'ACTIVE'),

@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 
 const registrationSchema = z.object({
@@ -52,25 +53,24 @@ export async function registerUserAction(formData: FormData) {
 
   const supabase = await createClient()
 
-  // 2. Uniqueness check for email and username
-  const { data: existingEmail } = await supabase
+  // 2. Uniqueness & Status Check for existing user records
+  const { data: existingUser } = await supabase
     .from('users')
-    .select('id')
-    .eq('email', email)
-    .single() as { data: { id: string } | null }
+    .select('id, status, email, username')
+    .or(`email.eq.${email},username.eq.${username}`)
+    .maybeSingle() as { data: { id: string; status: string; email: string; username: string } | null }
 
-  if (existingEmail) {
-    return { error: 'An account with this email already exists.' }
-  }
+  let userId: string | null = null
 
-  const { data: existingUsername } = await supabase
-    .from('users')
-    .select('id')
-    .eq('username', username)
-    .single() as { data: { id: string } | null }
-
-  if (existingUsername) {
-    return { error: 'This username is already taken. Please choose another.' }
+  if (existingUser) {
+    if (existingUser.status === 'ACTIVE') {
+      return { error: 'An active account with this email or username already exists. Please log in.' }
+    } else if (existingUser.status === 'PENDING') {
+      // User created previously (e.g. during an email rate limit event). Reuse user ID to complete registration!
+      userId = existingUser.id
+    } else {
+      return { error: `An account with this email exists and is currently ${existingUser.status}.` }
+    }
   }
 
   // 3. Upload Payment Screenshot to Supabase Storage if present
@@ -94,28 +94,69 @@ export async function registerUserAction(formData: FormData) {
     }
   }
 
-  // 4. Create User in Supabase Auth
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        name,
-        phone,
-        username,
-        role: 'USER',
-        status: 'PENDING',
-      },
-    },
-  })
+  // 4. Create User in Supabase Auth if not already existing
+  if (!userId) {
+    const adminSupabase = createAdminClient()
 
-  if (authError || !authData.user) {
-    return { error: authError?.message || 'Failed to create registration account.' }
+    if (adminSupabase) {
+      // Use Admin API to create user without sending confirmation email -> avoids email rate limit completely!
+      const { data: adminAuthData, error: adminAuthError } = await adminSupabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          name,
+          phone,
+          username,
+          role: 'USER',
+          status: 'PENDING',
+        },
+      })
+
+      if (adminAuthError || !adminAuthData.user) {
+        return { error: adminAuthError?.message || 'Failed to create user account.' }
+      }
+      userId = adminAuthData.user.id
+    } else {
+      // Standard Client fallback
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            phone,
+            username,
+            role: 'USER',
+            status: 'PENDING',
+          },
+        },
+      })
+
+      if (authData?.user) {
+        userId = authData.user.id
+      } else if (authError) {
+        // If auth error occurred (like email rate limit), try to retrieve user if created
+        const { data: createdProfile } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle() as { data: { id: string } | null }
+
+        if (createdProfile) {
+          userId = createdProfile.id
+        } else {
+          return { error: authError.message }
+        }
+      }
+    }
   }
 
-  const userId = authData.user.id
+  if (!userId) {
+    return { error: 'Could not resolve user ID for registration.' }
+  }
 
-  // 5. Ensure user profile exists in `public.users` table with status = 'PENDING'
+  // 5. Upsert profile in `public.users` table
   await (supabase.from('users') as any).upsert({
     id: userId,
     name,
@@ -126,24 +167,41 @@ export async function registerUserAction(formData: FormData) {
     status: 'PENDING',
   })
 
-  // 6. Create `public.registrations` record
-  const { error: regError } = await (supabase.from('registrations') as any).insert({
-    user_id: userId,
-    transaction_id,
-    payment_amount,
-    payment_screenshot_url: screenshotUrl,
-    status: 'PENDING',
-  })
+  // 6. Create or update `public.registrations` record
+  const { data: existingReg } = await (supabase.from('registrations') as any)
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle()
 
-  if (regError) {
-    return { error: 'Failed to record payment details. Please contact support.' }
+  if (existingReg) {
+    await (supabase.from('registrations') as any)
+      .update({
+        transaction_id,
+        payment_amount,
+        payment_screenshot_url: screenshotUrl || undefined,
+        status: 'PENDING',
+      })
+      .eq('id', existingReg.id)
+  } else {
+    const { error: regError } = await (supabase.from('registrations') as any).insert({
+      user_id: userId,
+      transaction_id,
+      payment_amount,
+      payment_screenshot_url: screenshotUrl,
+      status: 'PENDING',
+    })
+
+    if (regError) {
+      console.error('Registration Insert Error:', regError)
+      return { error: 'Failed to record payment details. Please contact support.' }
+    }
   }
 
   // 7. Log to activity_logs
   await (supabase.from('activity_logs') as any).insert({
     user_id: userId,
     action: 'REGISTRATION_SUBMITTED',
-    description: `New user registration submitted by ${name} (${username}) with TxID ${transaction_id}.`,
+    description: `User registration submitted by ${name} (${username}) with TxID ${transaction_id}.`,
   })
 
   // 8. Sign out user to ensure they remain unauthenticated until Admin approves
