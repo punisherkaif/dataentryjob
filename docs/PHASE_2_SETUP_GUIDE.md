@@ -1,20 +1,20 @@
 # Phase 2: Supabase Storage & Registration Approval Setup Guide
 
-This step-by-step guide will walk you through applying the Phase 2 Storage setup, testing public user registration with manual UPI payment details, approving registrations from the Admin panel, and verifying worker access.
+This step-by-step guide will walk you through applying the Phase 2 Storage & RLS setup, testing public user registration with manual UPI payment details, approving registrations from the Admin panel, and verifying worker access.
 
 ---
 
-## 1. Apply Phase 2 Supabase Storage Migration
+## 1. Apply Phase 2 Supabase Migrations
 
 1. Open your [Supabase Dashboard](https://supabase.com/dashboard) and click on **SQL Editor**.
 2. Click **New Query**.
-3. Open the file [`supabase/migrations/20260816000001_phase2_storage.sql`](file:///d:/Github/Testing%20projects/dataentryjob/supabase/migrations/20260816000001_phase2_storage.sql).
-4. Copy and paste the SQL content into the Supabase SQL Editor and click **Run**.
+3. Copy and paste the contents of [`supabase/migrations/20260816000001_phase2_storage.sql`](file:///d:/Github/Testing%20projects/dataentryjob/supabase/migrations/20260816000001_phase2_storage.sql) into the SQL Editor and click **Run**.
+4. Create another **New Query**.
+5. Copy and paste the contents of [`supabase/migrations/20260816000002_fix_registration_rls.sql`](file:///d:/Github/Testing%20projects/dataentryjob/supabase/migrations/20260816000002_fix_registration_rls.sql) into the SQL Editor and click **Run**.
 
-> **What this does:**
-> - Creates the `payment-screenshots` bucket in Supabase Storage.
-> - Enables public uploads for payment screenshots during registration.
-> - Enables public read access for payment screenshots so admins can inspect payment receipts.
+> **What these do:**
+> - `20260816000001_phase2_storage.sql`: Creates the `payment-screenshots` bucket in Supabase Storage with public upload & select policies.
+> - `20260816000002_fix_registration_rls.sql`: Permits public unauthenticated user registration submissions into `registrations`, `users`, and `activity_logs` tables without being blocked by Row Level Security (RLS).
 
 ---
 

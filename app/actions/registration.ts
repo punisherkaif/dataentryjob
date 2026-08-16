@@ -52,13 +52,15 @@ export async function registerUserAction(formData: FormData) {
   }
 
   const supabase = await createClient()
+  const adminSupabase = createAdminClient()
+  // Use admin client if available to bypass RLS during registration, otherwise fallback to server client
+  const dbClient = adminSupabase || supabase
 
   // 2. Uniqueness & Status Check for existing user records
-  const { data: existingUser } = await supabase
-    .from('users')
+  const { data: existingUser } = await (dbClient.from('users') as any)
     .select('id, status, email, username')
     .or(`email.eq.${email},username.eq.${username}`)
-    .maybeSingle() as { data: { id: string; status: string; email: string; username: string } | null }
+    .maybeSingle()
 
   let userId: string | null = null
 
@@ -66,7 +68,7 @@ export async function registerUserAction(formData: FormData) {
     if (existingUser.status === 'ACTIVE') {
       return { error: 'An active account with this email or username already exists. Please log in.' }
     } else if (existingUser.status === 'PENDING') {
-      // User created previously (e.g. during an email rate limit event). Reuse user ID to complete registration!
+      // User created previously. Reuse user ID to complete registration!
       userId = existingUser.id
     } else {
       return { error: `An account with this email exists and is currently ${existingUser.status}.` }
@@ -79,7 +81,7 @@ export async function registerUserAction(formData: FormData) {
     const fileExt = screenshotFile.name.split('.').pop() || 'png'
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { data: uploadData, error: uploadError } = await dbClient.storage
       .from('payment-screenshots')
       .upload(fileName, screenshotFile, {
         cacheControl: '3600',
@@ -87,7 +89,7 @@ export async function registerUserAction(formData: FormData) {
       })
 
     if (!uploadError && uploadData) {
-      const { data: publicUrlData } = supabase.storage
+      const { data: publicUrlData } = dbClient.storage
         .from('payment-screenshots')
         .getPublicUrl(uploadData.path)
       screenshotUrl = publicUrlData.publicUrl
@@ -96,8 +98,6 @@ export async function registerUserAction(formData: FormData) {
 
   // 4. Create User in Supabase Auth if not already existing
   if (!userId) {
-    const adminSupabase = createAdminClient()
-
     if (adminSupabase) {
       // Use Admin API to create user without sending confirmation email -> avoids email rate limit completely!
       const { data: adminAuthData, error: adminAuthError } = await adminSupabase.auth.admin.createUser({
@@ -137,11 +137,10 @@ export async function registerUserAction(formData: FormData) {
         userId = authData.user.id
       } else if (authError) {
         // If auth error occurred (like email rate limit), try to retrieve user if created
-        const { data: createdProfile } = await supabase
-          .from('users')
+        const { data: createdProfile } = await (dbClient.from('users') as any)
           .select('id')
           .eq('email', email)
-          .maybeSingle() as { data: { id: string } | null }
+          .maybeSingle()
 
         if (createdProfile) {
           userId = createdProfile.id
@@ -157,7 +156,7 @@ export async function registerUserAction(formData: FormData) {
   }
 
   // 5. Upsert profile in `public.users` table
-  await (supabase.from('users') as any).upsert({
+  await (dbClient.from('users') as any).upsert({
     id: userId,
     name,
     email,
@@ -168,13 +167,13 @@ export async function registerUserAction(formData: FormData) {
   })
 
   // 6. Create or update `public.registrations` record
-  const { data: existingReg } = await (supabase.from('registrations') as any)
+  const { data: existingReg } = await (dbClient.from('registrations') as any)
     .select('id')
     .eq('user_id', userId)
     .maybeSingle()
 
   if (existingReg) {
-    await (supabase.from('registrations') as any)
+    const { error: updateError } = await (dbClient.from('registrations') as any)
       .update({
         transaction_id,
         payment_amount,
@@ -182,8 +181,13 @@ export async function registerUserAction(formData: FormData) {
         status: 'PENDING',
       })
       .eq('id', existingReg.id)
+
+    if (updateError) {
+      console.error('Registration Update Error:', updateError)
+      return { error: 'Failed to update payment details: ' + updateError.message }
+    }
   } else {
-    const { error: regError } = await (supabase.from('registrations') as any).insert({
+    const { error: regError } = await (dbClient.from('registrations') as any).insert({
       user_id: userId,
       transaction_id,
       payment_amount,
@@ -193,12 +197,12 @@ export async function registerUserAction(formData: FormData) {
 
     if (regError) {
       console.error('Registration Insert Error:', regError)
-      return { error: 'Failed to record payment details. Please contact support.' }
+      return { error: 'Failed to record payment details: ' + regError.message }
     }
   }
 
   // 7. Log to activity_logs
-  await (supabase.from('activity_logs') as any).insert({
+  await (dbClient.from('activity_logs') as any).insert({
     user_id: userId,
     action: 'REGISTRATION_SUBMITTED',
     description: `User registration submitted by ${name} (${username}) with TxID ${transaction_id}.`,
