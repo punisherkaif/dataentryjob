@@ -11,6 +11,9 @@ import {
   Calendar,
   AlertTriangle,
   FolderPlus,
+  Download,
+  Keyboard,
+  Link2,
 } from 'lucide-react'
 import Shell from '@/components/layout/Shell'
 import StatusBadge from '@/components/ui/StatusBadge'
@@ -18,7 +21,9 @@ import StatusBadge from '@/components/ui/StatusBadge'
 export interface SubmissionItem {
   id: string
   task_id: string
-  google_drive_url: string
+  google_drive_url: string | null
+  submission_method?: 'DRIVE_LINK' | 'TYPED_DOCX'
+  compiled_document_url?: string | null
   status: 'SUBMITTED' | 'UNDER_REVIEW' | 'PASSED' | 'FAILED'
   submitted_at: string
   reviewed_at: string | null
@@ -107,14 +112,28 @@ export default function WorkerSubmissionsClient({ submissions, workerName, worke
                         {new Date(sub.submitted_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4">
-                        <a
-                          href={sub.google_drive_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-mono"
-                        >
-                          <ExternalLink className="h-3 w-3" /> View Doc
-                        </a>
+                        {sub.submission_method === 'TYPED_DOCX' || sub.compiled_document_url ? (
+                          <a
+                            href={sub.compiled_document_url || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download="compiled_document.docx"
+                            className="inline-flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 font-medium"
+                          >
+                            <Download className="h-3.5 w-3.5" /> Word (.docx)
+                          </a>
+                        ) : sub.google_drive_url ? (
+                          <a
+                            href={sub.google_drive_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-mono"
+                          >
+                            <ExternalLink className="h-3 w-3" /> Drive Link
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-500">—</span>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={sub.status} />

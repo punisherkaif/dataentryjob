@@ -11,6 +11,7 @@ export type UserStatus = 'PENDING' | 'ACTIVE' | 'REJECTED' | 'SUSPENDED'
 export type RegistrationStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 export type TaskStatus = 'PENDING' | 'IN_PROGRESS' | 'SUBMITTED' | 'UNDER_REVIEW' | 'PASSED' | 'FAILED'
 export type SubmissionStatus = 'SUBMITTED' | 'UNDER_REVIEW' | 'PASSED' | 'FAILED'
+export type SubmissionMethod = 'DRIVE_LINK' | 'TYPED_DOCX'
 
 export interface Database {
   public: {
@@ -152,12 +153,46 @@ export interface Database {
           created_at?: string
         }
       }
+      task_page_progress: {
+        Row: {
+          id: string
+          task_id: string
+          user_id: string
+          task_image_id: string | null
+          page_order: number
+          typed_text: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          task_id: string
+          user_id: string
+          task_image_id?: string | null
+          page_order?: number
+          typed_text?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          task_id?: string
+          user_id?: string
+          task_image_id?: string | null
+          page_order?: number
+          typed_text?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
       submissions: {
         Row: {
           id: string
           task_id: string
           user_id: string
-          google_drive_url: string
+          google_drive_url: string | null
+          submission_method: SubmissionMethod
+          compiled_document_url: string | null
           status: SubmissionStatus
           submitted_at: string
           reviewed_at: string | null
@@ -170,7 +205,9 @@ export interface Database {
           id?: string
           task_id: string
           user_id: string
-          google_drive_url: string
+          google_drive_url?: string | null
+          submission_method?: SubmissionMethod
+          compiled_document_url?: string | null
           status?: SubmissionStatus
           submitted_at?: string
           reviewed_at?: string | null
@@ -183,7 +220,9 @@ export interface Database {
           id?: string
           task_id?: string
           user_id?: string
-          google_drive_url?: string
+          google_drive_url?: string | null
+          submission_method?: SubmissionMethod
+          compiled_document_url?: string | null
           status?: SubmissionStatus
           submitted_at?: string
           reviewed_at?: string | null

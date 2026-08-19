@@ -194,7 +194,7 @@ export async function getAdminTaskDetailAction(taskId: string) {
       .order('image_order'),
     (supabase.from('submissions') as any)
       .select(`
-        id, task_id, user_id, google_drive_url, status, submitted_at, reviewed_at,
+        id, task_id, user_id, google_drive_url, submission_method, compiled_document_url, status, submitted_at, reviewed_at,
         failure_reason, allow_resubmission, created_at,
         reviewer:users!submissions_reviewed_by_fkey ( id, name )
       `)
@@ -260,7 +260,7 @@ export async function getWorkerTaskDetailAction(taskId: string) {
       .order('image_order'),
     (supabase.from('submissions') as any)
       .select(`
-        id, task_id, user_id, google_drive_url, status, submitted_at, reviewed_at,
+        id, task_id, user_id, google_drive_url, submission_method, compiled_document_url, status, submitted_at, reviewed_at,
         failure_reason, allow_resubmission, created_at,
         reviewer:users!submissions_reviewed_by_fkey ( id, name )
       `)
