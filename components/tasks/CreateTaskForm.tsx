@@ -24,7 +24,8 @@ import {
   FileArchive,
 } from 'lucide-react'
 import Shell from '@/components/layout/Shell'
-import { createTaskAction } from '@/app/actions/tasks'
+import { createTaskDirectAction } from '@/app/actions/tasks'
+import { createClient as createBrowserClient } from '@/lib/supabase/client'
 
 interface Worker {
   id: string
@@ -52,6 +53,7 @@ type FormValues = z.infer<typeof createTaskSchema>
 
 export default function CreateTaskForm({ workers, adminName, adminEmail }: Props) {
   const router = useRouter()
+  const supabase = createBrowserClient()
 
   // Attachments state
   const [zipFile, setZipFile] = useState<File | null>(null)
@@ -60,6 +62,7 @@ export default function CreateTaskForm({ workers, adminName, adminEmail }: Props
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null)
 
   const imageInputRef = useRef<HTMLInputElement>(null)
   const zipInputRef = useRef<HTMLInputElement>(null)
@@ -98,35 +101,89 @@ export default function CreateTaskForm({ workers, adminName, adminEmail }: Props
   const onSubmit = async (data: FormValues) => {
     setErrorMsg(null)
     setLoading(true)
-
-    const formData = new FormData()
-    formData.append('title', data.title.trim())
-    if (data.description?.trim()) formData.append('description', data.description.trim())
-    if (data.instructions?.trim()) formData.append('instructions', data.instructions.trim())
-    formData.append('assigned_to', data.assigned_to)
-    if (data.deadline?.trim()) formData.append('deadline', data.deadline.trim())
-
-    if (zipUrlInput.trim()) {
-      formData.append('zip_url_input', zipUrlInput.trim())
-    }
-
-    if (zipFile) {
-      formData.append('zip_file', zipFile)
-    }
-
-    previewImages.forEach(({ file }) => formData.append('images', file))
+    setUploadProgress('Preparing upload...')
 
     try {
-      const res = await createTaskAction(formData)
+      let finalZipUrl = zipUrlInput.trim() || undefined
+      let finalZipName = zipUrlInput.trim() ? 'External ZIP Link' : undefined
+
+      // 1. Direct browser upload for archive package (if provided)
+      if (zipFile && zipFile.size > 0) {
+        setUploadProgress(`Uploading archive package (${(zipFile.size / (1024 * 1024)).toFixed(1)} MB)...`)
+        const fileExt = zipFile.name.split('.').pop() || 'zip'
+        const safeName = zipFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const zipPath = `zips/${Date.now()}_${safeName}`
+
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('task-images')
+          .upload(zipPath, zipFile, { cacheControl: '3600', upsert: false })
+
+        if (uploadErr) {
+          setLoading(false)
+          setUploadProgress(null)
+          setErrorMsg('Failed to upload archive: ' + uploadErr.message)
+          return
+        }
+
+        const { data: urlData } = supabase.storage.from('task-images').getPublicUrl(uploadData.path)
+        finalZipUrl = urlData.publicUrl
+        finalZipName = zipFile.name
+      }
+
+      // 2. Direct browser upload for individual images (if provided)
+      const uploadedImages: { image_url: string; image_order: number }[] = []
+      if (previewImages.length > 0) {
+        for (let i = 0; i < previewImages.length; i++) {
+          setUploadProgress(`Uploading image ${i + 1} of ${previewImages.length}...`)
+          const item = previewImages[i]
+          const fileExt = item.file.name.split('.').pop() || 'jpg'
+          const safeName = item.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+          const imgPath = `tasks/uploads/${Date.now()}_${i}_${safeName}`
+
+          const { data: imgUploadData, error: imgUploadErr } = await supabase.storage
+            .from('task-images')
+            .upload(imgPath, item.file, { cacheControl: '3600', upsert: false })
+
+          if (imgUploadErr) {
+            setLoading(false)
+            setUploadProgress(null)
+            setErrorMsg(`Failed to upload image ${i + 1} (${item.name}): ${imgUploadErr.message}`)
+            return
+          }
+
+          const { data: urlData } = supabase.storage.from('task-images').getPublicUrl(imgUploadData.path)
+          uploadedImages.push({
+            image_url: urlData.publicUrl,
+            image_order: i,
+          })
+        }
+      }
+
+      // 3. Create task record via lightweight action (payload < 2KB)
+      setUploadProgress('Finalizing task creation...')
+      const res = await createTaskDirectAction({
+        title: data.title.trim(),
+        description: data.description?.trim() || undefined,
+        instructions: data.instructions?.trim() || undefined,
+        assigned_to: data.assigned_to,
+        deadline: data.deadline?.trim() || undefined,
+        zip_file_url: finalZipUrl,
+        zip_file_name: finalZipName,
+        images: uploadedImages,
+      })
+
       setLoading(false)
+      setUploadProgress(null)
+
       if (res.error) {
         setErrorMsg(res.error)
       } else {
         router.push('/admin/tasks')
       }
-    } catch {
+    } catch (err: any) {
       setLoading(false)
-      setErrorMsg('An unexpected error occurred while creating the task.')
+      setUploadProgress(null)
+      setErrorMsg(err?.message || 'An unexpected error occurred while creating the task.')
     }
   }
 
@@ -379,12 +436,12 @@ export default function CreateTaskForm({ workers, adminName, adminEmail }: Props
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Creating &amp; Assigning Task…
+                    {uploadProgress || 'Creating & Assigning Task…'}
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="h-4 w-4" />
-                    Create &amp; Assign Task
+                    Create & Assign Task
                   </>
                 )}
               </button>
