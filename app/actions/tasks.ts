@@ -25,6 +25,113 @@ export async function getActiveWorkersAction() {
   return { workers: data || [], error: error?.message }
 }
 
+export interface CreateTaskDirectInput {
+  title: string
+  description?: string
+  instructions?: string
+  assigned_to: string
+  deadline?: string
+  zip_file_url?: string
+  zip_file_name?: string
+  images?: { image_url: string; image_order: number }[]
+}
+
+/**
+ * Direct task creation using pre-uploaded storage URLs.
+ * Bypasses Vercel Serverless Function 4.5MB payload limits completely.
+ */
+export async function createTaskDirectAction(input: CreateTaskDirectInput) {
+  const supabase = await createClient()
+  const dbClient = createAdminClient() || supabase
+
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser()
+  if (!authUser) return { error: 'Unauthorized.' }
+
+  // Verify Admin role
+  const { data: profile } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', authUser.id)
+    .single() as { data: { role: string } | null }
+
+  if (profile?.role !== 'ADMIN') {
+    return { error: 'Only admins can create tasks.' }
+  }
+
+  const { title, description, instructions, assigned_to, deadline, zip_file_url, zip_file_name, images } = input
+
+  if (!title || title.trim().length < 2) {
+    return { error: 'Task title must be at least 2 characters.' }
+  }
+
+  if (!assigned_to) {
+    return { error: 'Please select a worker.' }
+  }
+
+  // Verify assigned worker is ACTIVE
+  const { data: assignedWorker } = await supabase
+    .from('users')
+    .select('id, name')
+    .eq('id', assigned_to)
+    .eq('role', 'USER')
+    .eq('status', 'ACTIVE')
+    .single() as { data: { id: string; name: string } | null }
+
+  if (!assignedWorker) {
+    return { error: 'Selected worker is not an active user.' }
+  }
+
+  // Create the task
+  const { data: newTask, error: taskError } = await (dbClient.from('tasks') as any)
+    .insert({
+      title: title.trim(),
+      description: description?.trim() || null,
+      instructions: instructions?.trim() || null,
+      assigned_to,
+      deadline: deadline ? new Date(deadline).toISOString() : null,
+      status: 'PENDING',
+      zip_file_url: zip_file_url || null,
+      zip_file_name: zip_file_name || null,
+      created_by: authUser.id,
+    })
+    .select('id')
+    .single()
+
+  if (taskError || !newTask) {
+    return { error: 'Failed to create task: ' + (taskError?.message || 'Database error') }
+  }
+
+  const taskId = newTask.id
+
+  // Insert image rows if provided
+  if (images && images.length > 0) {
+    const imageRows = images.map((img, idx) => ({
+      task_id: taskId,
+      image_url: img.image_url,
+      image_order: img.image_order ?? idx,
+    }))
+
+    const { error: imgInsertError } = await (dbClient.from('task_images') as any).insert(imageRows)
+    if (imgInsertError) {
+      console.error('Error inserting task images:', imgInsertError)
+    }
+  }
+
+  // Log activity
+  await (dbClient.from('activity_logs') as any).insert({
+    user_id: authUser.id,
+    action: 'TASK_CREATED',
+    description: `Admin created task "${title}" and assigned it to ${assignedWorker.name}.`,
+  })
+
+  revalidatePath('/admin/tasks')
+  revalidatePath('/admin/dashboard')
+
+  return { success: true, taskId }
+}
+
 export async function createTaskAction(formData: FormData) {
   const supabase = await createClient()
   const dbClient = createAdminClient() || supabase
@@ -194,7 +301,7 @@ export async function getAdminTaskDetailAction(taskId: string) {
       .order('image_order'),
     (supabase.from('submissions') as any)
       .select(`
-        id, task_id, user_id, google_drive_url, status, submitted_at, reviewed_at,
+        id, task_id, user_id, google_drive_url, submission_method, compiled_document_url, status, submitted_at, reviewed_at,
         failure_reason, allow_resubmission, created_at,
         reviewer:users!submissions_reviewed_by_fkey ( id, name )
       `)
@@ -260,7 +367,7 @@ export async function getWorkerTaskDetailAction(taskId: string) {
       .order('image_order'),
     (supabase.from('submissions') as any)
       .select(`
-        id, task_id, user_id, google_drive_url, status, submitted_at, reviewed_at,
+        id, task_id, user_id, google_drive_url, submission_method, compiled_document_url, status, submitted_at, reviewed_at,
         failure_reason, allow_resubmission, created_at,
         reviewer:users!submissions_reviewed_by_fkey ( id, name )
       `)

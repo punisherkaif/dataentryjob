@@ -88,7 +88,9 @@ export async function submitWorkAction(formData: { taskId: string; googleDriveUr
     // Update existing submission record
     const { data: updatedSub, error: subUpdateError } = await (dbClient.from('submissions') as any)
       .update({
+        submission_method: 'DRIVE_LINK',
         google_drive_url: googleDriveUrl,
+        compiled_document_url: null,
         status: 'UNDER_REVIEW',
         submitted_at: now,
         reviewed_at: null,
@@ -109,7 +111,9 @@ export async function submitWorkAction(formData: { taskId: string; googleDriveUr
       .insert({
         task_id: taskId,
         user_id: authUser.id,
+        submission_method: 'DRIVE_LINK',
         google_drive_url: googleDriveUrl,
+        compiled_document_url: null,
         status: 'UNDER_REVIEW',
         submitted_at: now,
         allow_resubmission: true,
@@ -282,6 +286,8 @@ export async function getAdminSubmissionsAction(statusFilter: string = 'ALL') {
       task_id,
       user_id,
       google_drive_url,
+      submission_method,
+      compiled_document_url,
       status,
       submitted_at,
       reviewed_at,
@@ -334,6 +340,8 @@ export async function getWorkerSubmissionsAction() {
       id,
       task_id,
       google_drive_url,
+      submission_method,
+      compiled_document_url,
       status,
       submitted_at,
       reviewed_at,

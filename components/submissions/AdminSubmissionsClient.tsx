@@ -19,6 +19,9 @@ import {
   Check,
   X,
   Lock,
+  Download,
+  Keyboard,
+  Link2,
 } from 'lucide-react'
 import Shell from '@/components/layout/Shell'
 import StatusBadge from '@/components/ui/StatusBadge'
@@ -28,7 +31,9 @@ interface SubmissionItem {
   id: string
   task_id: string
   user_id: string
-  google_drive_url: string
+  google_drive_url: string | null
+  submission_method?: 'DRIVE_LINK' | 'TYPED_DOCX'
+  compiled_document_url?: string | null
   status: 'SUBMITTED' | 'UNDER_REVIEW' | 'PASSED' | 'FAILED'
   submitted_at: string
   reviewed_at: string | null
@@ -223,6 +228,17 @@ export default function AdminSubmissionsClient({ adminName, adminEmail }: Props)
                         >
                           {sub.tasks?.title || 'Untitled Task'}
                         </Link>
+                        <div className="mt-1 flex items-center gap-1.5">
+                          {sub.submission_method === 'TYPED_DOCX' || sub.compiled_document_url ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                              <Keyboard className="h-3 w-3" /> Typed in-platform (.docx)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+                              <Link2 className="h-3 w-3" /> Google Drive Link
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-xs font-mono text-slate-300">
                         {new Date(sub.submitted_at).toLocaleString()}
@@ -327,25 +343,50 @@ export default function AdminSubmissionsClient({ adminName, adminEmail }: Props)
               </div>
             </div>
 
-            {/* Primary Document Link Action */}
-            <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">Google Drive Document</span>
-                <span className="text-[11px] text-slate-400">External Document</span>
+            {/* Primary Document Action (Compiled DOCX or Google Drive) */}
+            {selectedSubmission.submission_method === 'TYPED_DOCX' || selectedSubmission.compiled_document_url ? (
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Compiled Word Document</span>
+                    <span className="text-[10px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-2 py-0.5 rounded-full font-medium">Typed in-platform</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400">Microsoft Word (.docx)</span>
+                </div>
+                <p className="text-xs text-slate-300 font-mono truncate bg-slate-950/80 px-3 py-2 rounded-lg border border-slate-800">
+                  {selectedSubmission.compiled_document_url}
+                </p>
+                <a
+                  href={selectedSubmission.compiled_document_url || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={`${selectedSubmission.tasks?.title?.replace(/[^a-zA-Z0-9_-]/g, '_') || 'submission'}_compiled.docx`}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500 transition-all shadow-md shadow-emerald-600/25"
+                >
+                  <Download className="h-4 w-4" />
+                  Download / Open Compiled Word Document (.docx)
+                </a>
               </div>
-              <p className="text-xs text-slate-300 font-mono truncate bg-slate-950/80 px-3 py-2 rounded-lg border border-slate-800">
-                {selectedSubmission.google_drive_url}
-              </p>
-              <a
-                href={selectedSubmission.google_drive_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-500 transition-all shadow-md shadow-indigo-600/25"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Open Document in New Tab
-              </a>
-            </div>
+            ) : (
+              <div className="rounded-xl border border-indigo-500/30 bg-indigo-950/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">Google Drive Document</span>
+                  <span className="text-[11px] text-slate-400">External Document</span>
+                </div>
+                <p className="text-xs text-slate-300 font-mono truncate bg-slate-950/80 px-3 py-2 rounded-lg border border-slate-800">
+                  {selectedSubmission.google_drive_url}
+                </p>
+                <a
+                  href={selectedSubmission.google_drive_url || '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-500 transition-all shadow-md shadow-indigo-600/25"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open Document in New Tab
+                </a>
+              </div>
+            )}
 
             {/* Instructions reference (if available) */}
             {selectedSubmission.tasks?.instructions && (
