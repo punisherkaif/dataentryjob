@@ -43,6 +43,7 @@ interface Props {
   }
   images: TaskImage[]
   initialProgress?: PageProgress[]
+  failureReason?: string | null
   onComplete: (data: { submissionId: string; compiledDocUrl: string }) => void
   onCancel: () => void
 }
@@ -51,6 +52,7 @@ export default function TypingWorkspace({
   task,
   images,
   initialProgress = [],
+  failureReason,
   onComplete,
   onCancel,
 }: Props) {
@@ -315,6 +317,19 @@ export default function TypingWorkspace({
           style={{ width: `${progressPercent}%` }}
         />
       </div>
+
+      {/* Admin Feedback / Rejection Reason Banner (if reworking after rejection) */}
+      {failureReason && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 p-2.5 px-4 text-xs text-amber-200 flex items-start gap-2.5 shrink-0 shadow-sm">
+          <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <span className="font-bold uppercase tracking-wider text-amber-300 text-[10px] mr-1.5 bg-amber-500/20 px-1.5 py-0.5 rounded">
+              Rework Feedback
+            </span>
+            <span className="text-amber-100">{failureReason}</span>
+          </div>
+        </div>
+      )}
 
       {compileError && (
         <div className="bg-rose-500/20 border-b border-rose-500/30 p-2.5 px-4 text-xs text-rose-300 flex items-center justify-between">

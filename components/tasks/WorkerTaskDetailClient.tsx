@@ -389,7 +389,7 @@ export default function WorkerTaskDetailClient({
             {/* Admin Failure Reason Box */}
             <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 space-y-1.5">
               <p className="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
-                <AlertTriangle className="h-4 w-4" /> Admin Feedback / Failure Reason
+                <AlertTriangle className="h-4 w-4" /> Admin Feedback / Correction Required
               </p>
               <p className="text-sm text-slate-200 whitespace-pre-wrap leading-relaxed">
                 {submission?.failure_reason || 'No specific reason provided.'}
@@ -397,9 +397,48 @@ export default function WorkerTaskDetailClient({
             </div>
 
             {submission?.allow_resubmission ? (
-              <p className="text-xs text-slate-400">
-                The admin has permitted resubmission. You can fix your text in the workspace or submit an updated link below.
-              </p>
+              <div className="space-y-3 pt-2">
+                <div className="rounded-xl bg-slate-950/80 border border-slate-800 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                      <RotateCcw className="h-4 w-4 text-amber-400" />
+                      Resubmission Allowed
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      Your previously typed text for all pages has been saved. Launch the workspace to edit your text and re-compile.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenWorkspace}
+                    disabled={loadingWorkspace}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-500 hover:to-indigo-500 text-xs font-bold text-white shadow-lg shadow-amber-600/20 transition-all shrink-0 disabled:opacity-50"
+                  >
+                    {loadingWorkspace ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Keyboard className="h-4 w-4" />
+                    )}
+                    <span>Open Workspace &amp; Fix Text</span>
+                  </button>
+                </div>
+
+                {submission?.compiled_document_url && (
+                  <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+                    <span>Previous compilation:</span>
+                    <a
+                      href={submission.compiled_document_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={`${task.title.replace(/[^a-zA-Z0-9_-]/g, '_')}_previous.docx`}
+                      className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-medium"
+                    >
+                      <Download className="h-3.5 w-3.5" /> Download Previous .docx
+                    </a>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="rounded-xl bg-slate-950 border border-slate-800 p-3 text-xs text-slate-400">
                 Resubmission is closed for this task.
@@ -536,6 +575,7 @@ export default function WorkerTaskDetailClient({
             task={task}
             images={images}
             initialProgress={pageProgress}
+            failureReason={submission?.status === 'FAILED' ? submission.failure_reason : null}
             onComplete={handleWorkspaceComplete}
             onCancel={() => setIsWorkspaceOpen(false)}
           />
